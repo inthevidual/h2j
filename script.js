@@ -23,6 +23,8 @@ class HEIC2JPG {
         this.progressSection = document.getElementById('progressSection');
         this.progressText    = document.getElementById('progressText');
         this.overallFill     = document.getElementById('overallProgressFill');
+        this.saveAllSection  = document.getElementById('saveAllSection');
+        this.saveAllBtn      = document.getElementById('saveAllBtn');
 
         this.bindEvents();
     }
@@ -56,6 +58,21 @@ class HEIC2JPG {
         this.clearBtn.addEventListener('click', () => {
             if (!this.isConverting) this.clear();
         });
+
+        // "Save all as ZIP" – user-initiated tap (works on iOS)
+        this.saveAllBtn.addEventListener('click', () => {
+            this.downloadAllAsZip();
+        });
+    }
+
+    /* ── Check if a file is HEIC/HEIF ── */
+    isHeicFile(file) {
+        const ext = file.name.toLowerCase().split('.').pop();
+        if (ext === 'heic' || ext === 'heif') return true;
+        // Also check MIME type (some systems set it)
+        const mime = file.type.toLowerCase();
+        if (mime === 'image/heic' || mime === 'image/heif') return true;
+        return false;
     }
 
     /* ── Add files & auto-convert ── */
@@ -63,10 +80,10 @@ class HEIC2JPG {
         const incoming = Array.from(fileList);
         const remaining = this.maxFiles - this.files.length;
         const toAdd = incoming.slice(0, remaining);
+        let added = 0;
 
         for (const file of toAdd) {
-            const ext = file.name.toLowerCase().split('.').pop();
-            if (ext !== 'heic' && ext !== 'heif') continue;
+            if (!this.isHeicFile(file)) continue;
 
             this.files.push({
                 file,
@@ -75,6 +92,7 @@ class HEIC2JPG {
                 blob: null,
                 errorMsg: ''
             });
+            added++;
         }
 
         this.render();
@@ -89,6 +107,7 @@ class HEIC2JPG {
         this.files = [];
         this.isConverting = false;
         this.progressSection.hidden = true;
+        this.saveAllSection.hidden = true;
         this.render();
     }
 
@@ -105,6 +124,9 @@ class HEIC2JPG {
         } else {
             this.fileCount.textContent = `${total} bild${total !== 1 ? 'er' : ''}`;
         }
+
+        // Show "save all" button when multiple files are done
+        this.saveAllSection.hidden = !(done > 1 && done === total);
 
         this.fileList.innerHTML = '';
         for (let i = 0; i < this.files.length; i++) {
@@ -123,7 +145,7 @@ class HEIC2JPG {
             } else if (f.status === 'converting') {
                 statusHTML = '<span class="spinner"></span>';
             } else if (f.status === 'done') {
-                statusHTML = `<button class="btn btn-primary btn-sm" data-download="${i}">Spara</button>`;
+                statusHTML = `<a class="btn btn-primary btn-sm" data-download="${i}" href="#">Spara</a>`;
             } else if (f.status === 'error') {
                 statusHTML = `<span class="badge badge-sm" style="background:rgba(220,50,50,0.2);color:#f87171;border-color:rgba(220,50,50,0.4)" title="${this.escapeHtml(f.errorMsg)}">Fel</span>`;
             }
@@ -142,9 +164,26 @@ class HEIC2JPG {
             this.fileList.appendChild(el);
         }
 
-        this.fileList.querySelectorAll('[data-download]').forEach(btn => {
-            btn.addEventListener('click', (e) => {
-                const idx = parseInt(e.currentTarget.dataset.download, 10);
+        // Bind download links – create real blob URLs so iOS can follow them
+        this.fileList.querySelectorAll('[data-download]').forEach(link => {
+            const idx = parseInt(link.dataset.download, 10);
+            const entry = this.files[idx];
+            if (entry && entry.blob) {
+                const jpgName = entry.name.replace(/\.heic$/i, '.jpg').replace(/\.heif$/i, '.jpg');
+                const url = URL.createObjectURL(entry.blob);
+                link.href = url;
+                link.download = jpgName;
+                // Don't revoke immediately – iOS needs the URL to persist until tap
+            }
+            link.addEventListener('click', (e) => {
+                // On iOS, the default <a> navigation handles the download.
+                // On desktop, we let the default behavior work too.
+                // Prevent the # from adding to URL if blob URL failed
+                if (link.href && link.href.startsWith('blob:')) {
+                    // Let browser handle the download natively
+                    return;
+                }
+                e.preventDefault();
                 this.downloadFile(idx);
             });
         });
@@ -212,7 +251,6 @@ class HEIC2JPG {
 
     /* ── libheif: load local asm.js decoder, use HeifDecoder API ── */
     async convertWithLibheif(file) {
-        // Lazy-load libheif.js on first use
         if (!this._libheifModule) {
             if (typeof libheif === 'undefined') {
                 await this.loadScript('libheif.js');
@@ -236,7 +274,6 @@ class HEIC2JPG {
         const w = image.get_width();
         const h = image.get_height();
 
-        // Use display() to get RGBA pixel data
         const imageData = new ImageData(w, h);
         const displayData = await new Promise((resolve, reject) => {
             image.display(imageData, (result) => {
@@ -245,7 +282,6 @@ class HEIC2JPG {
             });
         });
 
-        // Draw to canvas and export as JPEG
         const canvas = document.createElement('canvas');
         canvas.width = w;
         canvas.height = h;
@@ -268,6 +304,7 @@ class HEIC2JPG {
     async convertAll() {
         this.isConverting = true;
         this.progressSection.hidden = false;
+        this.saveAllSection.hidden = true;
 
         let completed = 0;
         const total = this.files.length;
@@ -300,20 +337,14 @@ class HEIC2JPG {
         }
 
         this.isConverting = false;
-
-        // Auto-download
-        const doneFiles = this.files.filter(f => f.status === 'done');
-        if (doneFiles.length === 1) {
-            this.downloadFile(this.files.indexOf(doneFiles[0]));
-        } else if (doneFiles.length > 1) {
-            await this.downloadAllAsZip();
-        }
-
         this.render();
+
+        // No auto-download – iOS blocks programmatic downloads outside user gestures.
+        // User taps individual "Spara" buttons or "Spara alla som ZIP".
 
         setTimeout(() => {
             this.progressSection.hidden = true;
-        }, 2000);
+        }, 1500);
     }
 
     /* ── Progress ── */
@@ -323,7 +354,7 @@ class HEIC2JPG {
         this.overallFill.style.width = pct + '%';
     }
 
-    /* ── Download single file ── */
+    /* ── Download single file (fallback for non-<a> download) ── */
     downloadFile(idx) {
         const entry = this.files[idx];
         if (!entry || !entry.blob) return;

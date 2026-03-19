@@ -17,7 +17,7 @@
     <link href="https://cdn.jsdelivr.net/npm/daisyui@5/daisyui.css" rel="stylesheet" type="text/css" />
     <link href="https://cdn.jsdelivr.net/npm/daisyui@5/themes.css" rel="stylesheet" type="text/css" />
     <script src="https://cdn.jsdelivr.net/npm/@tailwindcss/browser@4"></script>
-    <link rel="icon" type="image/svg+xml" href="favicon.svg?v=1.3">
+    <link rel="icon" type="image/svg+xml" href="favicon.svg?v=1.4">
 
     <style type="text/tailwindcss">
         @theme {
@@ -31,7 +31,7 @@
             --color-secondary-content: #fff;
         }
     </style>
-    <link rel="stylesheet" href="h2j-styles.css?v=1.3">
+    <link rel="stylesheet" href="h2j-styles.css?v=1.4">
 </head>
 <body class="min-h-screen bg-base-100 text-base-content font-sans">
     <div class="max-w-lg mx-auto px-4 py-6">
@@ -41,7 +41,7 @@
             <div class="card card-border bg-base-200 shadow-md">
                 <div class="card-body flex flex-col items-center gap-3 py-5">
                     <div class="w-20 h-20 p-2 bg-base-100 rounded-2xl border border-base-300 shrink-0">
-                        <img src="favicon.svg?v=1.3" alt="HEIC2JPG" class="w-full h-full object-contain drop-shadow-md">
+                        <img src="favicon.svg?v=1.4" alt="HEIC2JPG" class="w-full h-full object-contain drop-shadow-md">
                     </div>
                     <div class="text-center">
                         <div class="brand-title text-3xl font-extrabold tracking-wider uppercase font-mono">HEIC2JPG</div>
@@ -68,7 +68,7 @@
                     <h3 class="text-base font-semibold mb-1">Tryck här eller dra och släpp</h3>
                     <p class="text-base-content/70 text-sm mb-0">Välj upp till 50 HEIC-bilder</p>
                 </div>
-                <input type="file" id="fileInput" accept=".heic,.heif,image/heic,image/heif" multiple hidden>
+                <input type="file" id="fileInput" accept="image/*" multiple hidden>
             </div>
         </section>
 
@@ -94,12 +94,19 @@
             </div>
         </section>
 
+        <!-- SAVE ALL (shown after conversion, user-triggered for iOS compat) -->
+        <section id="saveAllSection" class="mb-5" hidden>
+            <button id="saveAllBtn" class="btn btn-primary btn-lg w-full" style="box-shadow:0 0 24px rgba(255,20,147,0.35)">
+                Spara alla som ZIP
+            </button>
+        </section>
+
     </div>
 
     <footer class="site-footer footer footer-center py-6 border-t border-base-300 text-base-content/50 font-mono text-sm font-bold">
         <p>&copy; CP-Tjänst/Jesper Sandström 2026</p>
     </footer>
 
-    <script src="script.js?v=1.3"></script>
+    <script src="script.js?v=1.4"></script>
 </body>
 </html>
