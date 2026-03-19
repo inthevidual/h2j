@@ -1,6 +1,7 @@
 /* ──────────────────────────────────────────────
    HEIC2JPG  –  local HEIC → JPG converter
    All processing happens in the browser.
+   Uses native Canvas on iOS Safari, heic2any fallback elsewhere.
    ────────────────────────────────────────────── */
 
 class HEIC2JPG {
@@ -11,17 +12,12 @@ class HEIC2JPG {
         this.isConverting = false;
 
         // DOM refs
-        this.dropZone       = document.getElementById('dropZone');
-        this.fileInput      = document.getElementById('fileInput');
+        this.dropZone        = document.getElementById('dropZone');
+        this.fileInput       = document.getElementById('fileInput');
         this.fileList        = document.getElementById('fileList');
         this.fileListSection = document.getElementById('fileListSection');
         this.fileCount       = document.getElementById('fileCount');
         this.clearBtn        = document.getElementById('clearBtn');
-        this.convertBtn      = document.getElementById('convertBtn');
-        this.convertSection  = document.getElementById('convertSection');
-        this.qualitySection  = document.getElementById('qualitySection');
-        this.qualitySlider   = document.getElementById('qualitySlider');
-        this.qualityValue    = document.getElementById('qualityValue');
         this.progressSection = document.getElementById('progressSection');
         this.progressText    = document.getElementById('progressText');
         this.overallFill     = document.getElementById('overallProgressFill');
@@ -61,20 +57,9 @@ class HEIC2JPG {
         this.clearBtn.addEventListener('click', () => {
             if (!this.isConverting) this.clear();
         });
-
-        // Convert
-        this.convertBtn.addEventListener('click', () => {
-            if (!this.isConverting) this.convertAll();
-        });
-
-        // Quality slider
-        this.qualitySlider.addEventListener('input', (e) => {
-            this.quality = parseInt(e.target.value, 10) / 100;
-            this.qualityValue.textContent = e.target.value + '%';
-        });
     }
 
-    /* ── Add files ── */
+    /* ── Add files & auto-convert ── */
     addFiles(fileList) {
         const incoming = Array.from(fileList);
         const remaining = this.maxFiles - this.files.length;
@@ -95,6 +80,11 @@ class HEIC2JPG {
         }
 
         this.render();
+
+        // Auto-start conversion immediately
+        if (!this.isConverting && this.files.some(f => f.status === 'pending')) {
+            this.convertAll();
+        }
     }
 
     /* ── Clear all ── */
@@ -107,29 +97,16 @@ class HEIC2JPG {
     /* ── Render file list ── */
     render() {
         const hasFiles = this.files.length > 0;
-
         this.fileListSection.hidden = !hasFiles;
-        this.convertSection.hidden  = !hasFiles;
-        this.qualitySection.hidden  = !hasFiles;
 
         // Count label
-        const pending = this.files.filter(f => f.status === 'pending').length;
-        const done    = this.files.filter(f => f.status === 'done').length;
-        const total   = this.files.length;
+        const done  = this.files.filter(f => f.status === 'done').length;
+        const total = this.files.length;
 
         if (done === total && total > 0) {
-            this.fileCount.textContent = `${total} bilder – klara!`;
+            this.fileCount.textContent = `${total} bild${total !== 1 ? 'er' : ''} – klara!`;
         } else {
             this.fileCount.textContent = `${total} bild${total !== 1 ? 'er' : ''}`;
-        }
-
-        // Convert button state
-        this.convertBtn.disabled = pending === 0 || this.isConverting;
-        if (done === total && total > 0) {
-            this.convertBtn.textContent = 'Alla klara!';
-            this.convertBtn.disabled = true;
-        } else {
-            this.convertBtn.textContent = `Konvertera ${pending} bild${pending !== 1 ? 'er' : ''} till JPG`;
         }
 
         // Build list
@@ -137,7 +114,10 @@ class HEIC2JPG {
         for (let i = 0; i < this.files.length; i++) {
             const f = this.files[i];
             const el = document.createElement('div');
-            el.className = 'file-item' + (f.status === 'converting' ? ' converting' : '') + (f.status === 'done' ? ' done' : '') + (f.status === 'error' ? ' error' : '');
+            el.className = 'file-item' +
+                (f.status === 'converting' ? ' converting' : '') +
+                (f.status === 'done' ? ' done' : '') +
+                (f.status === 'error' ? ' error' : '');
 
             const jpgName = f.name.replace(/\.heic$/i, '.jpg').replace(/\.heif$/i, '.jpg');
 
@@ -147,7 +127,7 @@ class HEIC2JPG {
             } else if (f.status === 'converting') {
                 statusHTML = '<span class="spinner"></span>';
             } else if (f.status === 'done') {
-                statusHTML = `<button class="btn btn-primary btn-sm" data-download="${i}">Ladda ner</button>`;
+                statusHTML = `<button class="btn btn-primary btn-sm" data-download="${i}">Spara</button>`;
             } else if (f.status === 'error') {
                 statusHTML = `<span class="badge badge-error badge-sm" title="${this.escapeHtml(f.errorMsg)}">Fel</span>`;
             }
@@ -160,7 +140,6 @@ class HEIC2JPG {
                 </div>
                 <div class="flex items-center gap-2">
                     ${statusHTML}
-                    ${f.status !== 'converting' ? `<button class="btn btn-ghost btn-sm btn-square" data-remove="${i}" title="Ta bort">✕</button>` : ''}
                 </div>
             `;
 
@@ -174,15 +153,68 @@ class HEIC2JPG {
                 this.downloadFile(idx);
             });
         });
+    }
 
-        // Bind remove buttons
-        this.fileList.querySelectorAll('[data-remove]').forEach(btn => {
-            btn.addEventListener('click', (e) => {
-                if (this.isConverting) return;
-                const idx = parseInt(e.currentTarget.dataset.remove, 10);
-                this.files.splice(idx, 1);
-                this.render();
+    /* ── Convert a single HEIC to JPG blob ── */
+    async convertOne(file) {
+        // Strategy 1: Try native Canvas (works on iOS Safari which supports HEIC natively)
+        try {
+            const blob = await this.convertNative(file);
+            if (blob && blob.size > 0) return blob;
+        } catch (_) {
+            // Native failed, try heic2any
+        }
+
+        // Strategy 2: Use heic2any library
+        if (typeof heic2any !== 'undefined') {
+            const result = await heic2any({
+                blob: file,
+                toType: 'image/jpeg',
+                quality: this.quality
             });
+            return Array.isArray(result) ? result[0] : result;
+        }
+
+        throw new Error('Konvertering stöds inte i denna webbläsare');
+    }
+
+    /* ── Native Canvas conversion (iOS Safari) ── */
+    convertNative(file) {
+        return new Promise((resolve, reject) => {
+            const url = URL.createObjectURL(file);
+            const img = new Image();
+
+            img.onload = () => {
+                try {
+                    const canvas = document.createElement('canvas');
+                    canvas.width = img.naturalWidth;
+                    canvas.height = img.naturalHeight;
+                    const ctx = canvas.getContext('2d');
+                    ctx.drawImage(img, 0, 0);
+                    canvas.toBlob(
+                        (blob) => {
+                            URL.revokeObjectURL(url);
+                            if (blob && blob.size > 0) {
+                                resolve(blob);
+                            } else {
+                                reject(new Error('Canvas export failed'));
+                            }
+                        },
+                        'image/jpeg',
+                        this.quality
+                    );
+                } catch (err) {
+                    URL.revokeObjectURL(url);
+                    reject(err);
+                }
+            };
+
+            img.onerror = () => {
+                URL.revokeObjectURL(url);
+                reject(new Error('Native decode failed'));
+            };
+
+            img.src = url;
         });
     }
 
@@ -191,15 +223,16 @@ class HEIC2JPG {
         this.isConverting = true;
         this.progressSection.hidden = false;
 
-        const pending = this.files.filter(f => f.status === 'pending');
         let completed = 0;
+        const total = this.files.length;
 
-        this.updateProgress(0, pending.length);
+        this.updateProgress(0, total);
         this.render();
 
         for (const entry of this.files) {
             if (entry.status !== 'pending') {
                 completed++;
+                this.updateProgress(completed, total);
                 continue;
             }
 
@@ -207,14 +240,7 @@ class HEIC2JPG {
             this.render();
 
             try {
-                const blob = await heic2any({
-                    blob: entry.file,
-                    toType: 'image/jpeg',
-                    quality: this.quality
-                });
-
-                // heic2any may return an array for multi-frame HEIC
-                entry.blob = Array.isArray(blob) ? blob[0] : blob;
+                entry.blob = await this.convertOne(entry.file);
                 entry.status = 'done';
             } catch (err) {
                 entry.status = 'error';
@@ -223,20 +249,18 @@ class HEIC2JPG {
             }
 
             completed++;
-            this.updateProgress(completed, this.files.length);
+            this.updateProgress(completed, total);
             this.render();
         }
 
         this.isConverting = false;
 
-        // Auto-download if all succeeded
-        const allDone = this.files.every(f => f.status === 'done');
+        // Auto-download
         const doneFiles = this.files.filter(f => f.status === 'done');
-
         if (doneFiles.length === 1) {
             this.downloadFile(this.files.indexOf(doneFiles[0]));
-        } else if (doneFiles.length > 1 && allDone) {
-            this.downloadAllAsZip();
+        } else if (doneFiles.length > 1) {
+            await this.downloadAllAsZip();
         }
 
         this.render();
@@ -244,7 +268,7 @@ class HEIC2JPG {
         // Hide progress after a moment
         setTimeout(() => {
             this.progressSection.hidden = true;
-        }, 1500);
+        }, 2000);
     }
 
     /* ── Progress ── */
@@ -267,7 +291,7 @@ class HEIC2JPG {
         document.body.appendChild(a);
         a.click();
         document.body.removeChild(a);
-        URL.revokeObjectURL(url);
+        setTimeout(() => URL.revokeObjectURL(url), 1000);
     }
 
     /* ── Download all as zip ── */
@@ -305,7 +329,7 @@ class HEIC2JPG {
         document.body.appendChild(a);
         a.click();
         document.body.removeChild(a);
-        URL.revokeObjectURL(url);
+        setTimeout(() => URL.revokeObjectURL(url), 1000);
     }
 
     /* ── Helpers ── */

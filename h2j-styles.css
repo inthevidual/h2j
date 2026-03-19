@@ -3,30 +3,30 @@ body {
     font-family: 'Fira Sans', system-ui, -apple-system, sans-serif;
 }
 
-/* ── Brand title glow (pink neon) ── */
+/* ── Brand title glow (vivid pink neon) ── */
 .brand-title {
-    color: #fbb5d5;
+    color: #ff6eb4;
     text-shadow:
-        0 0 1px  rgba(255,255,255,0.6),
-        0 0 4px  #fbb5d5,
-        0 0 10px oklch(from var(--color-primary) l c h / 0.7),
-        0 0 22px oklch(from var(--color-primary) l c h / 0.4),
-        0 0 44px oklch(from var(--color-primary) l c h / 0.2),
-        0 0 70px oklch(from var(--color-primary) l c h / 0.08);
+        0 0 1px  rgba(255,255,255,0.7),
+        0 0 4px  #ff6eb4,
+        0 0 10px oklch(from var(--color-primary) l c h / 0.8),
+        0 0 22px oklch(from var(--color-primary) l c h / 0.5),
+        0 0 44px oklch(from var(--color-primary) l c h / 0.25),
+        0 0 70px oklch(from var(--color-primary) l c h / 0.1);
     font-size: clamp(1.6rem, 6vw, 3.8rem);
     animation: neon-flicker 2.4s ease-out forwards;
 }
 
 @keyframes neon-flicker {
     0%   { opacity: 1;
-           color: #5a4955;
+           color: #5a3a4a;
            text-shadow: none;
     }
     5%   { opacity: 1;
-           color: #fdd;
+           color: #ffb3d9;
            text-shadow:
                0 0 1px  #fff,
-               0 0 3px  #fdd,
+               0 0 3px  #ffb3d9,
                0 0 8px  oklch(from var(--color-primary) l c h / 1),
                0 0 16px oklch(from var(--color-primary) l c h / 0.8),
                0 0 30px oklch(from var(--color-primary) l c h / 0.5),
@@ -34,18 +34,18 @@ body {
                0 0 80px oklch(from var(--color-primary) l c h / 0.15);
     }
     12%  { opacity: 1;
-           color: #5a4955;
+           color: #5a3a4a;
            text-shadow: none;
     }
     22%  { opacity: 1;
-           color: #5a4955;
+           color: #5a3a4a;
            text-shadow: none;
     }
     32%  { opacity: 1;
-           color: #fdd;
+           color: #ffb3d9;
            text-shadow:
                0 0 1px  #fff,
-               0 0 3px  #fdd,
+               0 0 3px  #ffb3d9,
                0 0 8px  oklch(from var(--color-primary) l c h / 1),
                0 0 16px oklch(from var(--color-primary) l c h / 0.8),
                0 0 30px oklch(from var(--color-primary) l c h / 0.5),
@@ -53,10 +53,10 @@ body {
                0 0 80px oklch(from var(--color-primary) l c h / 0.15);
     }
     55%  { opacity: 1;
-           color: #fdd;
+           color: #ffb3d9;
            text-shadow:
                0 0 1px  #fff,
-               0 0 3px  #fdd,
+               0 0 3px  #ffb3d9,
                0 0 8px  oklch(from var(--color-primary) l c h / 1),
                0 0 16px oklch(from var(--color-primary) l c h / 0.8),
                0 0 30px oklch(from var(--color-primary) l c h / 0.5),
@@ -64,14 +64,14 @@ body {
                0 0 80px oklch(from var(--color-primary) l c h / 0.15);
     }
     100% { opacity: 1;
-           color: #fbb5d5;
+           color: #ff6eb4;
            text-shadow:
-               0 0 1px  rgba(255,255,255,0.6),
-               0 0 4px  #fbb5d5,
-               0 0 10px oklch(from var(--color-primary) l c h / 0.7),
-               0 0 22px oklch(from var(--color-primary) l c h / 0.4),
-               0 0 44px oklch(from var(--color-primary) l c h / 0.2),
-               0 0 70px oklch(from var(--color-primary) l c h / 0.08);
+               0 0 1px  rgba(255,255,255,0.7),
+               0 0 4px  #ff6eb4,
+               0 0 10px oklch(from var(--color-primary) l c h / 0.8),
+               0 0 22px oklch(from var(--color-primary) l c h / 0.5),
+               0 0 44px oklch(from var(--color-primary) l c h / 0.25),
+               0 0 70px oklch(from var(--color-primary) l c h / 0.1);
     }
 }
 
@@ -162,15 +162,6 @@ body {
     background: var(--color-success);
 }
 
-/* ── Convert button glow ── */
-.convert-btn:not(:disabled) {
-    box-shadow: 0 0 24px oklch(from var(--color-primary) l c h / 0.35);
-}
-
-.convert-btn:not(:disabled):hover {
-    box-shadow: 0 0 36px oklch(from var(--color-primary) l c h / 0.5);
-}
-
 /* ── Footer ── */
 .site-footer {
     background: linear-gradient(
@@ -213,21 +204,8 @@ body {
 
 .overall-progress-fill {
     height: 100%;
-    background: linear-gradient(90deg, var(--color-primary), #f472b6);
+    background: linear-gradient(90deg, #ff1493, #ff69b4);
     border-radius: 3px;
     width: 0%;
     transition: width 0.3s ease;
-}
-
-/* ── Quality slider ── */
-.quality-display {
-    font-family: 'Fira Mono', monospace;
-    font-weight: 600;
-    font-size: 0.95rem;
-    text-align: center;
-    background: var(--color-neutral);
-    color: var(--color-neutral-content);
-    border-radius: var(--radius-box, 0.5rem);
-    padding: 0.5rem 1rem;
-    min-width: 60px;
 }
