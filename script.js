@@ -1,7 +1,7 @@
 /* ──────────────────────────────────────────────
    HEIC2JPG  –  local HEIC → JPG converter
    All processing happens in the browser.
-   Native Canvas on Safari, libheif asm.js fallback elsewhere.
+   libheif asm.js decoder – no native canvas decode.
    No external dependencies at runtime.
    ────────────────────────────────────────────── */
 
@@ -25,6 +25,8 @@ class HEIC2JPG {
         this.overallFill     = document.getElementById('overallProgressFill');
         this.saveAllSection  = document.getElementById('saveAllSection');
         this.saveAllBtn      = document.getElementById('saveAllBtn');
+        this.saveZipBtn      = document.getElementById('saveZipBtn');
+        this.warningEl       = document.getElementById('uploadWarning');
 
         this.bindEvents();
     }
@@ -59,17 +61,19 @@ class HEIC2JPG {
             if (!this.isConverting) this.clear();
         });
 
-        // "Save all as ZIP" – user-initiated tap (works on iOS)
         this.saveAllBtn.addEventListener('click', () => {
+            this.saveAll();
+        });
+
+        this.saveZipBtn.addEventListener('click', () => {
             this.downloadAllAsZip();
         });
     }
 
-    /* ── Check if a file is HEIC/HEIF ── */
+    /* ── Check if a file looks like HEIC/HEIF ── */
     isHeicFile(file) {
         const ext = file.name.toLowerCase().split('.').pop();
         if (ext === 'heic' || ext === 'heif') return true;
-        // Also check MIME type (some systems set it)
         const mime = file.type.toLowerCase();
         if (mime === 'image/heic' || mime === 'image/heif') return true;
         return false;
@@ -81,10 +85,13 @@ class HEIC2JPG {
         const remaining = this.maxFiles - this.files.length;
         const toAdd = incoming.slice(0, remaining);
         let added = 0;
+        let skipped = 0;
 
         for (const file of toAdd) {
-            if (!this.isHeicFile(file)) continue;
-
+            if (!this.isHeicFile(file)) {
+                skipped++;
+                continue;
+            }
             this.files.push({
                 file,
                 name: file.name,
@@ -95,11 +102,29 @@ class HEIC2JPG {
             added++;
         }
 
+        // Show warning if non-HEIC files were skipped
+        if (skipped > 0 && added === 0) {
+            this.showWarning('Inga HEIC-bilder hittades. Välj bilder i HEIC- eller HEIF-format.');
+        } else if (skipped > 0) {
+            this.showWarning(`${skipped} fil${skipped !== 1 ? 'er' : ''} hoppades över (ej HEIC/HEIF).`);
+        } else {
+            this.hideWarning();
+        }
+
         this.render();
 
         if (!this.isConverting && this.files.some(f => f.status === 'pending')) {
             this.convertAll();
         }
+    }
+
+    showWarning(msg) {
+        this.warningEl.textContent = msg;
+        this.warningEl.hidden = false;
+    }
+
+    hideWarning() {
+        this.warningEl.hidden = true;
     }
 
     /* ── Clear all ── */
@@ -108,6 +133,7 @@ class HEIC2JPG {
         this.isConverting = false;
         this.progressSection.hidden = true;
         this.saveAllSection.hidden = true;
+        this.hideWarning();
         this.render();
     }
 
@@ -125,9 +151,13 @@ class HEIC2JPG {
             this.fileCount.textContent = `${total} bild${total !== 1 ? 'er' : ''}`;
         }
 
-        // Show ZIP button when >=5 files are all done
+        // Show save-all section when all files are done and >1
         const allDone = done === total && total > 0;
-        this.saveAllSection.hidden = !(allDone && done >= 5);
+        this.saveAllSection.hidden = !(allDone && done > 1);
+        // Show ZIP button only for >=5
+        if (this.saveZipBtn) {
+            this.saveZipBtn.hidden = !(allDone && done >= 5);
+        }
 
         this.fileList.innerHTML = '';
         for (let i = 0; i < this.files.length; i++) {
@@ -165,105 +195,56 @@ class HEIC2JPG {
             this.fileList.appendChild(el);
         }
 
-        // Bind download links – create real blob URLs so iOS can follow them
+        // Bind download links with real blob URLs
         this.fileList.querySelectorAll('[data-download]').forEach(link => {
             const idx = parseInt(link.dataset.download, 10);
             const entry = this.files[idx];
             if (entry && entry.blob) {
                 const jpgName = entry.name.replace(/\.heic$/i, '.jpg').replace(/\.heif$/i, '.jpg');
-                const url = URL.createObjectURL(entry.blob);
-                link.href = url;
+                link.href = URL.createObjectURL(entry.blob);
                 link.download = jpgName;
-                // Don't revoke immediately – iOS needs the URL to persist until tap
             }
             link.addEventListener('click', (e) => {
-                // On iOS, the default <a> navigation handles the download.
-                // On desktop, we let the default behavior work too.
-                // Prevent the # from adding to URL if blob URL failed
-                if (link.href && link.href.startsWith('blob:')) {
-                    // Let browser handle the download natively
-                    return;
-                }
+                if (link.href && link.href.startsWith('blob:')) return;
                 e.preventDefault();
                 this.downloadFile(idx);
             });
         });
     }
 
-    /* ───────────────────────────────────────────
-       Conversion strategies
-       1. Native: img + canvas (Safari / HEIC-capable browsers)
-       2. libheif: local asm.js decoder (all browsers)
-       ─────────────────────────────────────────── */
-
-    async convertOne(file) {
-        // Strategy 1: Native canvas (works on iOS Safari which decodes HEIC natively)
-        try {
-            const blob = await this.convertNative(file);
-            if (blob && blob.size > 0) return blob;
-        } catch (_) { /* native failed, try libheif */ }
-
-        // Strategy 2: libheif asm.js decoder (works everywhere, no WASM file needed)
-        return await this.convertWithLibheif(file);
-    }
-
-    /* ── Native: load in <img>, draw to canvas, export JPEG ── */
-    convertNative(file) {
+    /* ── Read file as ArrayBuffer (with FileReader fallback for older iOS) ── */
+    readFileAsBuffer(file) {
+        if (file.arrayBuffer) {
+            return file.arrayBuffer();
+        }
         return new Promise((resolve, reject) => {
-            const url = URL.createObjectURL(file);
-            const img = new Image();
-            const timeout = setTimeout(() => {
-                URL.revokeObjectURL(url);
-                reject(new Error('Native decode timeout'));
-            }, 10000);
-
-            img.onload = () => {
-                clearTimeout(timeout);
-                try {
-                    const canvas = document.createElement('canvas');
-                    canvas.width = img.naturalWidth;
-                    canvas.height = img.naturalHeight;
-                    const ctx = canvas.getContext('2d');
-                    ctx.drawImage(img, 0, 0);
-                    canvas.toBlob(
-                        (blob) => {
-                            URL.revokeObjectURL(url);
-                            if (blob && blob.size > 0) resolve(blob);
-                            else reject(new Error('Canvas export empty'));
-                        },
-                        'image/jpeg',
-                        this.quality
-                    );
-                } catch (err) {
-                    URL.revokeObjectURL(url);
-                    reject(err);
-                }
-            };
-
-            img.onerror = () => {
-                clearTimeout(timeout);
-                URL.revokeObjectURL(url);
-                reject(new Error('Native decode failed'));
-            };
-
-            img.src = url;
+            const reader = new FileReader();
+            reader.onload = () => resolve(reader.result);
+            reader.onerror = () => reject(reader.error);
+            reader.readAsArrayBuffer(file);
         });
     }
 
-    /* ── libheif: load local asm.js decoder, use HeifDecoder API ── */
-    async convertWithLibheif(file) {
-        if (!this._libheifModule) {
-            if (typeof libheif === 'undefined') {
-                await this.loadScript('libheif.js');
-            }
-            this._libheifModule = libheif();
-            if (this._libheifModule.ready) {
-                await this._libheifModule.ready;
-            }
-        }
+    /* ── Ensure libheif is loaded ── */
+    async ensureLibheif() {
+        if (this._libheifModule) return this._libheifModule;
 
-        const mod = this._libheifModule;
-        const buffer = new Uint8Array(await file.arrayBuffer());
+        if (typeof libheif === 'undefined') {
+            await this.loadScript('libheif.js');
+        }
+        this._libheifModule = libheif();
+        if (this._libheifModule.ready) {
+            await this._libheifModule.ready;
+        }
+        return this._libheifModule;
+    }
+
+    /* ── Convert one file: libheif decode → pixel data → JPEG blob ── */
+    async convertOne(file) {
+        const mod = await this.ensureLibheif();
+        const arrayBuffer = await this.readFileAsBuffer(file);
+        const buffer = new Uint8Array(arrayBuffer);
+
         const decoder = new mod.HeifDecoder();
         const images = decoder.decode(buffer);
 
@@ -275,14 +256,24 @@ class HEIC2JPG {
         const w = image.get_width();
         const h = image.get_height();
 
+        // Decode to RGBA pixel data via display()
         const imageData = new ImageData(w, h);
         const displayData = await new Promise((resolve, reject) => {
             image.display(imageData, (result) => {
                 if (result) resolve(result);
-                else reject(new Error('HEIF display callback failed'));
+                else reject(new Error('HEIF-avkodning misslyckades'));
             });
         });
 
+        // Encode to JPEG via OffscreenCanvas if available, else regular canvas
+        if (typeof OffscreenCanvas !== 'undefined') {
+            const oc = new OffscreenCanvas(w, h);
+            const ctx = oc.getContext('2d');
+            ctx.putImageData(displayData, 0, 0);
+            return await oc.convertToBlob({ type: 'image/jpeg', quality: this.quality });
+        }
+
+        // Fallback: hidden canvas element
         const canvas = document.createElement('canvas');
         canvas.width = w;
         canvas.height = h;
@@ -293,7 +284,7 @@ class HEIC2JPG {
             canvas.toBlob(
                 (blob) => {
                     if (blob && blob.size > 0) resolve(blob);
-                    else reject(new Error('Canvas export failed'));
+                    else reject(new Error('JPEG-kodning misslyckades'));
                 },
                 'image/jpeg',
                 this.quality
@@ -340,9 +331,6 @@ class HEIC2JPG {
         this.isConverting = false;
         this.render();
 
-        // No auto-download – iOS blocks programmatic downloads outside user gestures.
-        // User taps individual "Spara" buttons or "Spara alla som ZIP".
-
         setTimeout(() => {
             this.progressSection.hidden = true;
         }, 1500);
@@ -355,7 +343,7 @@ class HEIC2JPG {
         this.overallFill.style.width = pct + '%';
     }
 
-    /* ── Download single file (fallback for non-<a> download) ── */
+    /* ── Download single file ── */
     downloadFile(idx) {
         const entry = this.files[idx];
         if (!entry || !entry.blob) return;
@@ -371,7 +359,39 @@ class HEIC2JPG {
         setTimeout(() => URL.revokeObjectURL(url), 1000);
     }
 
-    /* ── Download all as zip ── */
+    /* ── Save all: Web Share API on iOS, sequential downloads elsewhere ── */
+    async saveAll() {
+        const doneEntries = this.files.filter(f => f.status === 'done' && f.blob);
+        if (doneEntries.length === 0) return;
+
+        // Build File objects for share API
+        const shareFiles = doneEntries.map(f => {
+            const jpgName = f.name.replace(/\.heic$/i, '.jpg').replace(/\.heif$/i, '.jpg');
+            return new File([f.blob], jpgName, { type: 'image/jpeg' });
+        });
+
+        // Try Web Share API (works great on iOS 15+ — saves directly to Photos/Files)
+        if (navigator.canShare && navigator.canShare({ files: shareFiles })) {
+            try {
+                await navigator.share({ files: shareFiles });
+                return;
+            } catch (err) {
+                // User cancelled or share failed — fall through to sequential download
+                if (err.name === 'AbortError') return;
+            }
+        }
+
+        // Fallback: sequential downloads with delay
+        for (let i = 0; i < doneEntries.length; i++) {
+            const idx = this.files.indexOf(doneEntries[i]);
+            this.downloadFile(idx);
+            if (i < doneEntries.length - 1) {
+                await new Promise(r => setTimeout(r, 600));
+            }
+        }
+    }
+
+    /* ── Download all as ZIP ── */
     async downloadAllAsZip() {
         if (typeof JSZip === 'undefined') {
             await this.loadScript('jszip.min.js');

@@ -17,7 +17,7 @@
     <link href="https://cdn.jsdelivr.net/npm/daisyui@5/daisyui.css" rel="stylesheet" type="text/css" />
     <link href="https://cdn.jsdelivr.net/npm/daisyui@5/themes.css" rel="stylesheet" type="text/css" />
     <script src="https://cdn.jsdelivr.net/npm/@tailwindcss/browser@4"></script>
-    <link rel="icon" type="image/svg+xml" href="favicon.svg?v=1.6">
+    <link rel="icon" type="image/svg+xml" href="favicon.svg?v=1.7">
 
     <style type="text/tailwindcss">
         @theme {
@@ -37,7 +37,7 @@
             --color-neutral-content: #ffffff;
         }
     </style>
-    <link rel="stylesheet" href="h2j-styles.css?v=1.6">
+    <link rel="stylesheet" href="h2j-styles.css?v=1.7">
 </head>
 <body class="min-h-screen bg-base-100 text-base-content font-sans">
     <div class="max-w-lg mx-auto px-4 py-6">
@@ -47,7 +47,7 @@
             <div class="card card-border bg-base-200 shadow-md">
                 <div class="card-body flex flex-col items-center gap-3 py-5">
                     <div class="w-20 h-20 p-2 bg-base-100 rounded-2xl border border-base-300 shrink-0">
-                        <img src="favicon.svg?v=1.6" alt="HEIC2JPG" class="w-full h-full object-contain drop-shadow-md">
+                        <img src="favicon.svg?v=1.7" alt="HEIC2JPG" class="w-full h-full object-contain drop-shadow-md">
                     </div>
                     <div class="text-center">
                         <div class="brand-title text-3xl font-extrabold tracking-wider uppercase font-mono">HEIC2JPG</div>
@@ -75,8 +75,9 @@
                     <p class="text-white/60 text-sm mb-0">Välj upp till 50 HEIC-bilder</p>
                     <p class="text-white/40 text-xs mt-2">1–4 bilder laddas ner var för sig, 5+ packas som ZIP</p>
                 </div>
-                <input type="file" id="fileInput" accept="image/*" multiple hidden>
+                <input type="file" id="fileInput" accept=".heic,.heif,image/heic,image/heif,image/*" multiple hidden>
             </div>
+            <div id="uploadWarning" class="text-center text-sm mt-3 font-semibold" style="color:#f87171" hidden></div>
         </section>
 
         <!-- FILE LIST -->
@@ -102,8 +103,11 @@
         </section>
 
         <!-- SAVE ALL (shown after conversion, user-triggered for iOS compat) -->
-        <section id="saveAllSection" class="mb-5" hidden>
+        <section id="saveAllSection" class="mb-5 flex flex-col gap-2" hidden>
             <button id="saveAllBtn" class="btn btn-primary btn-lg w-full" style="box-shadow:0 0 24px rgba(255,20,147,0.35)">
+                Spara alla
+            </button>
+            <button id="saveZipBtn" class="btn btn-soft btn-sm w-full" style="--btn-color:#ff1493" hidden>
                 Spara alla som ZIP
             </button>
         </section>
@@ -111,9 +115,9 @@
     </div>
 
     <footer class="site-footer footer footer-center py-6 border-t border-base-300 text-white/40 font-mono text-sm font-bold">
-        <p>&copy; CP-Tjänst/Jesper Sandström 2026 <span class="badge badge-ghost badge-sm font-mono text-white/40">v1.6</span></p>
+        <p>&copy; CP-Tjänst/Jesper Sandström 2026 <span class="badge badge-ghost badge-sm font-mono text-white/40">v1.7</span></p>
     </footer>
 
-    <script src="script.js?v=1.6"></script>
+    <script src="script.js?v=1.7"></script>
 </body>
 </html>
