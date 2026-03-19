@@ -125,8 +125,9 @@ class HEIC2JPG {
             this.fileCount.textContent = `${total} bild${total !== 1 ? 'er' : ''}`;
         }
 
-        // Show "save all" button when multiple files are done
-        this.saveAllSection.hidden = !(done > 1 && done === total);
+        // >=5 done files: show ZIP button only. <5: individual save buttons.
+        const allDone = done === total && total > 0;
+        this.saveAllSection.hidden = !(allDone && done >= 5);
 
         this.fileList.innerHTML = '';
         for (let i = 0; i < this.files.length; i++) {
@@ -139,13 +140,19 @@ class HEIC2JPG {
 
             const jpgName = f.name.replace(/\.heic$/i, '.jpg').replace(/\.heif$/i, '.jpg');
 
+            const showIndividualSave = total < 5;
+
             let statusHTML = '';
             if (f.status === 'pending') {
                 statusHTML = '<span class="badge badge-ghost badge-sm">Väntar</span>';
             } else if (f.status === 'converting') {
                 statusHTML = '<span class="spinner"></span>';
             } else if (f.status === 'done') {
-                statusHTML = `<a class="btn btn-primary btn-sm" data-download="${i}" href="#">Spara</a>`;
+                if (showIndividualSave) {
+                    statusHTML = `<a class="btn btn-primary btn-sm" data-download="${i}" href="#">Spara</a>`;
+                } else {
+                    statusHTML = '<span class="badge badge-sm" style="background:rgba(255,20,147,0.15);color:#ff69b4;border-color:rgba(255,20,147,0.3)">Klar</span>';
+                }
             } else if (f.status === 'error') {
                 statusHTML = `<span class="badge badge-sm" style="background:rgba(220,50,50,0.2);color:#f87171;border-color:rgba(220,50,50,0.4)" title="${this.escapeHtml(f.errorMsg)}">Fel</span>`;
             }

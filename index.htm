@@ -17,7 +17,7 @@
     <link href="https://cdn.jsdelivr.net/npm/daisyui@5/daisyui.css" rel="stylesheet" type="text/css" />
     <link href="https://cdn.jsdelivr.net/npm/daisyui@5/themes.css" rel="stylesheet" type="text/css" />
     <script src="https://cdn.jsdelivr.net/npm/@tailwindcss/browser@4"></script>
-    <link rel="icon" type="image/svg+xml" href="favicon.svg?v=1.4">
+    <link rel="icon" type="image/svg+xml" href="favicon.svg?v=1.5">
 
     <style type="text/tailwindcss">
         @theme {
@@ -29,9 +29,15 @@
             --color-accent-content: #fff;
             --color-secondary: #ff69b4;
             --color-secondary-content: #fff;
+            --color-base-100: #141414;
+            --color-base-200: #1c1c1c;
+            --color-base-300: #2a2a2a;
+            --color-base-content: #ffffff;
+            --color-neutral: #1c1c1c;
+            --color-neutral-content: #ffffff;
         }
     </style>
-    <link rel="stylesheet" href="h2j-styles.css?v=1.4">
+    <link rel="stylesheet" href="h2j-styles.css?v=1.5">
 </head>
 <body class="min-h-screen bg-base-100 text-base-content font-sans">
     <div class="max-w-lg mx-auto px-4 py-6">
@@ -41,11 +47,11 @@
             <div class="card card-border bg-base-200 shadow-md">
                 <div class="card-body flex flex-col items-center gap-3 py-5">
                     <div class="w-20 h-20 p-2 bg-base-100 rounded-2xl border border-base-300 shrink-0">
-                        <img src="favicon.svg?v=1.4" alt="HEIC2JPG" class="w-full h-full object-contain drop-shadow-md">
+                        <img src="favicon.svg?v=1.5" alt="HEIC2JPG" class="w-full h-full object-contain drop-shadow-md">
                     </div>
                     <div class="text-center">
                         <div class="brand-title text-3xl font-extrabold tracking-wider uppercase font-mono">HEIC2JPG</div>
-                        <div class="flex items-center justify-center flex-wrap gap-2 text-base-content/50 font-mono text-sm mt-1">
+                        <div class="flex items-center justify-center flex-wrap gap-2 text-white/60 font-mono text-sm mt-1">
                             <span>HEIC till JPG – direkt i mobilen</span>
                         </div>
                     </div>
@@ -54,7 +60,7 @@
         </header>
 
         <!-- PRIVACY NOTICE -->
-        <div class="text-center text-sm text-base-content/60 mb-4 px-2">
+        <div class="text-center text-sm text-white/70 mb-4 px-2">
             Dina bilder lämnar aldrig din enhet. All konvertering sker lokalt i webbläsaren.
         </div>
 
@@ -66,7 +72,8 @@
                         <path stroke-linecap="round" stroke-linejoin="round" d="M3 16.5v2.25A2.25 2.25 0 005.25 21h13.5A2.25 2.25 0 0021 18.75V16.5m-13.5-9L12 3m0 0l4.5 4.5M12 3v13.5"/>
                     </svg>
                     <h3 class="text-base font-semibold mb-1">Tryck här eller dra och släpp</h3>
-                    <p class="text-base-content/70 text-sm mb-0">Välj upp till 50 HEIC-bilder</p>
+                    <p class="text-white/60 text-sm mb-0">Välj upp till 50 HEIC-bilder</p>
+                    <p class="text-white/40 text-xs mt-2">1–4 bilder laddas ner var för sig, 5+ packas som ZIP</p>
                 </div>
                 <input type="file" id="fileInput" accept="image/*" multiple hidden>
             </div>
@@ -75,7 +82,7 @@
         <!-- FILE LIST -->
         <section id="fileListSection" class="mb-5" hidden>
             <div class="flex items-center justify-between mb-3">
-                <span class="text-sm font-semibold text-base-content/85 font-mono" id="fileCount">0 bilder</span>
+                <span class="text-sm font-semibold text-white font-mono" id="fileCount">0 bilder</span>
                 <button type="button" id="clearBtn" class="btn btn-soft btn-sm" style="--btn-color:#ff1493">Rensa</button>
             </div>
             <div id="fileList" class="flex flex-col gap-2"></div>
@@ -85,8 +92,8 @@
         <section id="progressSection" class="card card-border mb-5" hidden>
             <div class="card-body py-4">
                 <div class="flex items-center justify-between mb-2">
-                    <span class="text-sm font-semibold text-base-content/85">Konverterar...</span>
-                    <span id="progressText" class="text-sm font-mono text-base-content/70">0 / 0</span>
+                    <span class="text-sm font-semibold text-white">Konverterar...</span>
+                    <span id="progressText" class="text-sm font-mono text-white/70">0 / 0</span>
                 </div>
                 <div class="overall-progress">
                     <div id="overallProgressFill" class="overall-progress-fill"></div>
@@ -103,10 +110,10 @@
 
     </div>
 
-    <footer class="site-footer footer footer-center py-6 border-t border-base-300 text-base-content/50 font-mono text-sm font-bold">
-        <p>&copy; CP-Tjänst/Jesper Sandström 2026</p>
+    <footer class="site-footer footer footer-center py-6 border-t border-base-300 text-white/40 font-mono text-sm font-bold">
+        <p>&copy; CP-Tjänst/Jesper Sandström 2026 <span class="badge badge-ghost badge-sm font-mono text-white/40">v1.5</span></p>
     </footer>
 
-    <script src="script.js?v=1.4"></script>
+    <script src="script.js?v=1.5"></script>
 </body>
 </html>
