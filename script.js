@@ -1,15 +1,16 @@
 /* ──────────────────────────────────────────────
    HEIC2JPG  –  local HEIC → JPG converter
    All processing happens in the browser.
-   Uses native Canvas on iOS Safari, heic2any fallback elsewhere.
+   Native Canvas on Safari, heic-decode fallback elsewhere.
    ────────────────────────────────────────────── */
 
 class HEIC2JPG {
     constructor() {
-        this.files = [];          // { file, name, status, blob }
+        this.files = [];
         this.maxFiles = 50;
         this.quality = 0.92;
         this.isConverting = false;
+        this._decode = null;
 
         // DOM refs
         this.dropZone        = document.getElementById('dropZone');
@@ -27,7 +28,6 @@ class HEIC2JPG {
 
     /* ── Events ── */
     bindEvents() {
-        // Click to upload
         this.dropZone.addEventListener('click', () => {
             if (!this.isConverting) this.fileInput.click();
         });
@@ -37,7 +37,6 @@ class HEIC2JPG {
             this.fileInput.value = '';
         });
 
-        // Drag and drop
         this.dropZone.addEventListener('dragover', (e) => {
             e.preventDefault();
             this.dropZone.classList.add('dragover');
@@ -53,7 +52,6 @@ class HEIC2JPG {
             if (!this.isConverting) this.addFiles(e.dataTransfer.files);
         });
 
-        // Clear
         this.clearBtn.addEventListener('click', () => {
             if (!this.isConverting) this.clear();
         });
@@ -66,14 +64,13 @@ class HEIC2JPG {
         const toAdd = incoming.slice(0, remaining);
 
         for (const file of toAdd) {
-            // Accept .heic / .heif by extension (mime types are unreliable on iOS)
             const ext = file.name.toLowerCase().split('.').pop();
             if (ext !== 'heic' && ext !== 'heif') continue;
 
             this.files.push({
                 file,
                 name: file.name,
-                status: 'pending',  // pending | converting | done | error
+                status: 'pending',
                 blob: null,
                 errorMsg: ''
             });
@@ -81,7 +78,6 @@ class HEIC2JPG {
 
         this.render();
 
-        // Auto-start conversion immediately
         if (!this.isConverting && this.files.some(f => f.status === 'pending')) {
             this.convertAll();
         }
@@ -91,6 +87,7 @@ class HEIC2JPG {
     clear() {
         this.files = [];
         this.isConverting = false;
+        this.progressSection.hidden = true;
         this.render();
     }
 
@@ -99,7 +96,6 @@ class HEIC2JPG {
         const hasFiles = this.files.length > 0;
         this.fileListSection.hidden = !hasFiles;
 
-        // Count label
         const done  = this.files.filter(f => f.status === 'done').length;
         const total = this.files.length;
 
@@ -109,7 +105,6 @@ class HEIC2JPG {
             this.fileCount.textContent = `${total} bild${total !== 1 ? 'er' : ''}`;
         }
 
-        // Build list
         this.fileList.innerHTML = '';
         for (let i = 0; i < this.files.length; i++) {
             const f = this.files[i];
@@ -129,7 +124,7 @@ class HEIC2JPG {
             } else if (f.status === 'done') {
                 statusHTML = `<button class="btn btn-primary btn-sm" data-download="${i}">Spara</button>`;
             } else if (f.status === 'error') {
-                statusHTML = `<span class="badge badge-error badge-sm" title="${this.escapeHtml(f.errorMsg)}">Fel</span>`;
+                statusHTML = `<span class="badge badge-sm" style="background:rgba(220,50,50,0.2);color:#f87171;border-color:rgba(220,50,50,0.4)" title="${this.escapeHtml(f.errorMsg)}">Fel</span>`;
             }
 
             el.innerHTML = `
@@ -146,7 +141,6 @@ class HEIC2JPG {
             this.fileList.appendChild(el);
         }
 
-        // Bind download buttons
         this.fileList.querySelectorAll('[data-download]').forEach(btn => {
             btn.addEventListener('click', (e) => {
                 const idx = parseInt(e.currentTarget.dataset.download, 10);
@@ -155,36 +149,35 @@ class HEIC2JPG {
         });
     }
 
-    /* ── Convert a single HEIC to JPG blob ── */
+    /* ───────────────────────────────────────────
+       Conversion strategies
+       1. Native: img + canvas (Safari / HEIC-capable browsers)
+       2. heic-decode: WASM-based decoder via esm.sh (all browsers)
+       ─────────────────────────────────────────── */
+
     async convertOne(file) {
-        // Strategy 1: Try native Canvas (works on iOS Safari which supports HEIC natively)
+        // Strategy 1: Native canvas (works on iOS Safari which decodes HEIC natively)
         try {
             const blob = await this.convertNative(file);
             if (blob && blob.size > 0) return blob;
-        } catch (_) {
-            // Native failed, try heic2any
-        }
+        } catch (_) { /* native failed, try WASM decoder */ }
 
-        // Strategy 2: Use heic2any library
-        if (typeof heic2any !== 'undefined') {
-            const result = await heic2any({
-                blob: file,
-                toType: 'image/jpeg',
-                quality: this.quality
-            });
-            return Array.isArray(result) ? result[0] : result;
-        }
-
-        throw new Error('Konvertering stöds inte i denna webbläsare');
+        // Strategy 2: heic-decode (WASM-based, works everywhere)
+        return await this.convertWithWasm(file);
     }
 
-    /* ── Native Canvas conversion (iOS Safari) ── */
+    /* ── Native: load in <img>, draw to canvas, export JPEG ── */
     convertNative(file) {
         return new Promise((resolve, reject) => {
             const url = URL.createObjectURL(file);
             const img = new Image();
+            const timeout = setTimeout(() => {
+                URL.revokeObjectURL(url);
+                reject(new Error('Native decode timeout'));
+            }, 10000);
 
             img.onload = () => {
+                clearTimeout(timeout);
                 try {
                     const canvas = document.createElement('canvas');
                     canvas.width = img.naturalWidth;
@@ -194,11 +187,8 @@ class HEIC2JPG {
                     canvas.toBlob(
                         (blob) => {
                             URL.revokeObjectURL(url);
-                            if (blob && blob.size > 0) {
-                                resolve(blob);
-                            } else {
-                                reject(new Error('Canvas export failed'));
-                            }
+                            if (blob && blob.size > 0) resolve(blob);
+                            else reject(new Error('Canvas export empty'));
                         },
                         'image/jpeg',
                         this.quality
@@ -210,11 +200,45 @@ class HEIC2JPG {
             };
 
             img.onerror = () => {
+                clearTimeout(timeout);
                 URL.revokeObjectURL(url);
                 reject(new Error('Native decode failed'));
             };
 
             img.src = url;
+        });
+    }
+
+    /* ── WASM: use heic-decode library loaded from esm.sh ── */
+    async convertWithWasm(file) {
+        if (!this._decode) {
+            try {
+                const module = await import('https://esm.sh/heic-decode@2.0.2');
+                this._decode = module.default;
+            } catch (err) {
+                throw new Error('Kunde inte ladda HEIC-avkodare: ' + err.message);
+            }
+        }
+
+        const buffer = await file.arrayBuffer();
+        const { width, height, data } = await this._decode({ buffer });
+
+        const canvas = document.createElement('canvas');
+        canvas.width = width;
+        canvas.height = height;
+        const ctx = canvas.getContext('2d');
+        const imageData = new ImageData(new Uint8ClampedArray(data.buffer || data), width, height);
+        ctx.putImageData(imageData, 0, 0);
+
+        return new Promise((resolve, reject) => {
+            canvas.toBlob(
+                (blob) => {
+                    if (blob && blob.size > 0) resolve(blob);
+                    else reject(new Error('Canvas export failed'));
+                },
+                'image/jpeg',
+                this.quality
+            );
         });
     }
 
@@ -265,7 +289,6 @@ class HEIC2JPG {
 
         this.render();
 
-        // Hide progress after a moment
         setTimeout(() => {
             this.progressSection.hidden = true;
         }, 2000);
@@ -296,7 +319,6 @@ class HEIC2JPG {
 
     /* ── Download all as zip ── */
     async downloadAllAsZip() {
-        // Dynamically load JSZip if not available
         if (typeof JSZip === 'undefined') {
             await this.loadScript('https://cdn.jsdelivr.net/npm/jszip@3.10.1/dist/jszip.min.js');
         }
@@ -308,7 +330,6 @@ class HEIC2JPG {
             if (entry.status !== 'done' || !entry.blob) continue;
             let jpgName = entry.name.replace(/\.heic$/i, '.jpg').replace(/\.heif$/i, '.jpg');
 
-            // Avoid duplicate names
             let finalName = jpgName;
             let counter = 1;
             while (usedNames.has(finalName)) {
@@ -317,7 +338,6 @@ class HEIC2JPG {
                 counter++;
             }
             usedNames.add(finalName);
-
             zip.file(finalName, entry.blob);
         }
 

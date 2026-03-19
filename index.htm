@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="sv" data-theme="halloween">
+<html lang="sv" data-theme="night">
 <head>
     <meta charset="UTF-8">
     <!-- Open Graph -->
@@ -17,7 +17,7 @@
     <link href="https://cdn.jsdelivr.net/npm/daisyui@5/daisyui.css" rel="stylesheet" type="text/css" />
     <link href="https://cdn.jsdelivr.net/npm/daisyui@5/themes.css" rel="stylesheet" type="text/css" />
     <script src="https://cdn.jsdelivr.net/npm/@tailwindcss/browser@4"></script>
-    <link rel="icon" type="image/svg+xml" href="favicon.svg?v=1.1">
+    <link rel="icon" type="image/svg+xml" href="favicon.svg?v=1.2">
 
     <style type="text/tailwindcss">
         @theme {
@@ -25,9 +25,13 @@
             --font-mono: 'Fira Mono', monospace;
             --color-primary: #ff1493;
             --color-primary-content: #fff;
+            --color-accent: #ff1493;
+            --color-accent-content: #fff;
+            --color-secondary: #ff69b4;
+            --color-secondary-content: #fff;
         }
     </style>
-    <link rel="stylesheet" href="h2j-styles.css?v=1.1">
+    <link rel="stylesheet" href="h2j-styles.css?v=1.2">
 </head>
 <body class="min-h-screen bg-base-100 text-base-content font-sans">
     <div class="max-w-lg mx-auto px-4 py-6">
@@ -37,7 +41,7 @@
             <div class="card card-border bg-base-200 shadow-md">
                 <div class="card-body flex flex-col items-center gap-3 py-5">
                     <div class="w-20 h-20 p-2 bg-base-100 rounded-2xl border border-base-300 shrink-0">
-                        <img src="favicon.svg?v=1.1" alt="HEIC2JPG" class="w-full h-full object-contain drop-shadow-md">
+                        <img src="favicon.svg?v=1.2" alt="HEIC2JPG" class="w-full h-full object-contain drop-shadow-md">
                     </div>
                     <div class="text-center">
                         <div class="brand-title text-3xl font-extrabold tracking-wider uppercase font-mono">HEIC2JPG</div>
@@ -58,7 +62,7 @@
         <section class="mb-5">
             <div class="drop-zone card card-dash" id="dropZone">
                 <div class="card-body flex flex-col justify-center items-center text-center py-10">
-                    <svg class="upload-icon w-14 h-14 text-primary mb-3 opacity-70" fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24">
+                    <svg class="upload-icon w-14 h-14 mb-3" style="color:#ff1493;opacity:0.8" fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24">
                         <path stroke-linecap="round" stroke-linejoin="round" d="M3 16.5v2.25A2.25 2.25 0 005.25 21h13.5A2.25 2.25 0 0021 18.75V16.5m-13.5-9L12 3m0 0l4.5 4.5M12 3v13.5"/>
                     </svg>
                     <h3 class="text-base font-semibold mb-1">Tryck här eller dra och släpp</h3>
@@ -72,7 +76,7 @@
         <section id="fileListSection" class="mb-5" hidden>
             <div class="flex items-center justify-between mb-3">
                 <span class="text-sm font-semibold text-base-content/85 font-mono" id="fileCount">0 bilder</span>
-                <button type="button" id="clearBtn" class="btn btn-soft btn-error btn-sm">Rensa</button>
+                <button type="button" id="clearBtn" class="btn btn-soft btn-sm" style="--btn-color:#ff1493">Rensa</button>
             </div>
             <div id="fileList" class="flex flex-col gap-2"></div>
         </section>
@@ -96,7 +100,6 @@
         <p>&copy; CP-Tjänst/Jesper Sandström 2026</p>
     </footer>
 
-    <script src="https://cdn.jsdelivr.net/npm/heic2any@0.0.4/dist/heic2any.min.js"></script>
-    <script src="script.js?v=1.1"></script>
+    <script src="script.js?v=1.2"></script>
 </body>
 </html>
