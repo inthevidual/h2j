@@ -1,7 +1,8 @@
 /* ──────────────────────────────────────────────
    HEIC2JPG  –  local HEIC → JPG converter
    All processing happens in the browser.
-   Native Canvas on Safari, heic-decode fallback elsewhere.
+   Native Canvas on Safari, libheif asm.js fallback elsewhere.
+   No external dependencies at runtime.
    ────────────────────────────────────────────── */
 
 class HEIC2JPG {
@@ -10,7 +11,7 @@ class HEIC2JPG {
         this.maxFiles = 50;
         this.quality = 0.92;
         this.isConverting = false;
-        this._decode = null;
+        this._libheifModule = null;
 
         // DOM refs
         this.dropZone        = document.getElementById('dropZone');
@@ -152,7 +153,7 @@ class HEIC2JPG {
     /* ───────────────────────────────────────────
        Conversion strategies
        1. Native: img + canvas (Safari / HEIC-capable browsers)
-       2. heic-decode: WASM-based decoder via esm.sh (all browsers)
+       2. libheif: local asm.js decoder (all browsers)
        ─────────────────────────────────────────── */
 
     async convertOne(file) {
@@ -160,10 +161,10 @@ class HEIC2JPG {
         try {
             const blob = await this.convertNative(file);
             if (blob && blob.size > 0) return blob;
-        } catch (_) { /* native failed, try WASM decoder */ }
+        } catch (_) { /* native failed, try libheif */ }
 
-        // Strategy 2: heic-decode (WASM-based, works everywhere)
-        return await this.convertWithWasm(file);
+        // Strategy 2: libheif asm.js decoder (works everywhere, no WASM file needed)
+        return await this.convertWithLibheif(file);
     }
 
     /* ── Native: load in <img>, draw to canvas, export JPEG ── */
@@ -209,26 +210,47 @@ class HEIC2JPG {
         });
     }
 
-    /* ── WASM: use heic-decode library loaded from esm.sh ── */
-    async convertWithWasm(file) {
-        if (!this._decode) {
-            try {
-                const module = await import('https://esm.sh/heic-decode@2.0.2');
-                this._decode = module.default;
-            } catch (err) {
-                throw new Error('Kunde inte ladda HEIC-avkodare: ' + err.message);
+    /* ── libheif: load local asm.js decoder, use HeifDecoder API ── */
+    async convertWithLibheif(file) {
+        // Lazy-load libheif.js on first use
+        if (!this._libheifModule) {
+            if (typeof libheif === 'undefined') {
+                await this.loadScript('libheif.js');
+            }
+            this._libheifModule = libheif();
+            if (this._libheifModule.ready) {
+                await this._libheifModule.ready;
             }
         }
 
-        const buffer = await file.arrayBuffer();
-        const { width, height, data } = await this._decode({ buffer });
+        const mod = this._libheifModule;
+        const buffer = new Uint8Array(await file.arrayBuffer());
+        const decoder = new mod.HeifDecoder();
+        const images = decoder.decode(buffer);
 
+        if (!images || images.length === 0) {
+            throw new Error('Kunde inte avkoda HEIC-filen');
+        }
+
+        const image = images[0];
+        const w = image.get_width();
+        const h = image.get_height();
+
+        // Use display() to get RGBA pixel data
+        const imageData = new ImageData(w, h);
+        const displayData = await new Promise((resolve, reject) => {
+            image.display(imageData, (result) => {
+                if (result) resolve(result);
+                else reject(new Error('HEIF display callback failed'));
+            });
+        });
+
+        // Draw to canvas and export as JPEG
         const canvas = document.createElement('canvas');
-        canvas.width = width;
-        canvas.height = height;
+        canvas.width = w;
+        canvas.height = h;
         const ctx = canvas.getContext('2d');
-        const imageData = new ImageData(new Uint8ClampedArray(data.buffer || data), width, height);
-        ctx.putImageData(imageData, 0, 0);
+        ctx.putImageData(displayData, 0, 0);
 
         return new Promise((resolve, reject) => {
             canvas.toBlob(
@@ -320,7 +342,7 @@ class HEIC2JPG {
     /* ── Download all as zip ── */
     async downloadAllAsZip() {
         if (typeof JSZip === 'undefined') {
-            await this.loadScript('https://cdn.jsdelivr.net/npm/jszip@3.10.1/dist/jszip.min.js');
+            await this.loadScript('jszip.min.js');
         }
 
         const zip = new JSZip();
@@ -358,7 +380,7 @@ class HEIC2JPG {
             const s = document.createElement('script');
             s.src = src;
             s.onload = resolve;
-            s.onerror = reject;
+            s.onerror = () => reject(new Error('Kunde inte ladda ' + src));
             document.head.appendChild(s);
         });
     }
